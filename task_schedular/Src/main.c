@@ -160,6 +160,15 @@ uint32_t get_psp_value(void){
 	return psp_of_tasks[current_task];
 }
 
+void save_psp_value(uint32_t stack_psp_value){
+	psp_of_tasks[current_task] = stack_psp_value;
+}
+
+void update_next_task(){
+	current_task++;
+	current_task %= MAX_TASKS;
+}
+
 __attribute__((naked)) void switch_sp_to_psp(void){
 	//1. initialize the PSP with TASK1 stack start
 	//get the value if psp of current_task
@@ -175,7 +184,19 @@ __attribute__((naked)) void switch_sp_to_psp(void){
 
 }
 
-void SysTick_Handler(void){
+
+
+__attribute__((naked)) void SysTick_Handler(void){
+	//Save the context of current task
+	__asm volatile("MRS R0,PSP");
+	__asm volatile("STMDB R0!,{R4-R11}");
+	__asm volatile("BL save_psp_value");
+
+	//Retrive the context of next task
+	__asm volatile("BL update_next_task");
+	__asm volatile("BL get_psp_value");
+	__asm volatile("LDMIA R0,{R4-R11}");
+	__asm volatile("MSR PSP,R0");
 
 }
 
