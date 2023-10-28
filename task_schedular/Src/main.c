@@ -31,6 +31,8 @@ __attribute__((naked)) void init_schedular_stack(uint32_t sched_top_of_stack);
 void enable_processor_fault(void);
 __attribute__((naked)) void switch_sp_to_psp(void);
 uint32_t get_psp_value(void);
+uint32_t get_psp_value(void);
+void update_next_task();
 
 uint32_t psp_of_tasks[MAX_TASKS] = {
 		T1_STACK_START,
@@ -190,6 +192,8 @@ __attribute__((naked)) void SysTick_Handler(void){
 	//Save the context of current task
 	__asm volatile("MRS R0,PSP");
 	__asm volatile("STMDB R0!,{R4-R11}");
+
+	__asm volatile("PUSH {LR}");
 	__asm volatile("BL save_psp_value");
 
 	//Retrive the context of next task
@@ -197,6 +201,9 @@ __attribute__((naked)) void SysTick_Handler(void){
 	__asm volatile("BL get_psp_value");
 	__asm volatile("LDMIA R0,{R4-R11}");
 	__asm volatile("MSR PSP,R0");
+	__asm volatile("POP {LR}");
+
+	__asm volatile("BX LR");
 
 }
 
