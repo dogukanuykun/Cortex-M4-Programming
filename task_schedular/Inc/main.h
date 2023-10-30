@@ -31,7 +31,11 @@
 #define DUMMY_XPSR 0x01000000
 
 
-#define TASK_RUNNING_STATE 0x00
+#define TASK_READY_STATE 0x00
 #define TASK_BLOCKED_STATE 0xFF
+
+#define INTERRUPT_DISABLE() do{__asm volatile("MOV R0,#0x1"); __asm volatile("MSR PRIMASK, R0");}while(0)
+#define INTERRUPT_ENABLE() 	do{__asm volatile("MOV R0,#0x0"); __asm volatile("MSR PRIMASK, R0");}while(0)
+
 
 #endif /* MAIN_H_ */

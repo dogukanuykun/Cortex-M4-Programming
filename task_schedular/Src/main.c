@@ -78,34 +78,34 @@ void idle_task(void){
 void task1_handler(void){
 	while(1){
 		led_on(LED_GREEN);
-		delay(DELAY_COUNT_1S);
+		task_delay(1000);
 		led_off(LED_GREEN);
-		delay(DELAY_COUNT_1S);
+		task_delay(1000);
 	}
 }
 
 void task2_handler(void){
 	while(1){
 		led_on(LED_ORANGE);
-		delay(DELAY_COUNT_500MS);
+		task_delay(500);
 		led_off(LED_ORANGE);
-		delay(DELAY_COUNT_500MS);
+		task_delay(500);
 		}
 }
 void task3_handler(void){
 	while(1){
 		led_on(LED_BLUE);
-		delay(DELAY_COUNT_250MS);
+		task_delay(250);
 		led_off(LED_BLUE);
-		delay(DELAY_COUNT_250MS);
+		task_delay(250);
 		}
 }
 void task4_handler(void){
 	while(1){
 		led_on(LED_RED);
-		delay(DELAY_COUNT_125MS);
+		task_delay(125);
 		led_off(LED_RED);
-		delay(DELAY_COUNT_125MS);
+		task_delay(125);
 		}
 }
 
@@ -180,8 +180,8 @@ void init_tasks_stack(void){
 
 		user_tasks[i].psp_value = (uint32_t)pPSP;
 
-
 	}
+
 
 }
 
@@ -203,9 +203,20 @@ void save_psp_value(uint32_t current_psp_value){
 	user_tasks[current_task].psp_value = current_psp_value;
 }
 
-void update_next_task(){
-	current_task++;
-	current_task %= MAX_TASKS;
+void update_next_task(void){
+	int state = TASK_BLOCKED_STATE;
+
+	for(int i= 0 ; i < (MAX_TASKS) ; i++)
+	{
+		current_task++;
+	    current_task %= MAX_TASKS;
+		state = user_tasks[current_task].current_state;
+		if( (state == TASK_READY_STATE) && (current_task != 0) )
+			break;
+	}
+
+	if(state != TASK_READY_STATE)
+		current_task = 0;
 }
 
 __attribute__((naked)) void switch_sp_to_psp(void){
@@ -228,16 +239,21 @@ void schedule(void){
 	*pICSR |= (1 << 28);
 }
 
+
+
 void task_delay(uint32_t tick_count){
+	//disable interrupt
+	INTERRUPT_DISABLE();
 	if (current_task) {
 		user_tasks[current_task].block_count = g_tick_count + tick_count;
 		user_tasks[current_task].current_state = TASK_BLOCKED_STATE;
 		schedule();
 	}
-
+	//enable interrupt
+	INTERRUPT_ENABLE();
 }
 
-__attribute__((naked)) PendSV_Handler(void){
+__attribute__((naked)) void PendSV_Handler(void){
 	//Save the context of current task
 	__asm volatile("MRS R0,PSP");
 	__asm volatile("STMDB R0!,{R4-R11}");
@@ -260,12 +276,16 @@ void update_global_tick_count(){
 }
 
 void unblock_tasks(){
-	for (int i = 0; i < MAX_TASKS; i++) {
-		if (user_tasks[i].current_state != TASK_READY_STATE) {
-			if (user_tasks[i].block_count == g_tick_count) {
-				user_tasks[i].current_state == TASK_READY_STATE;
+	for(int i = 1 ; i < MAX_TASKS ; i++)
+	{
+		if(user_tasks[i].current_state != TASK_READY_STATE)
+		{
+			if(user_tasks[i].block_count == g_tick_count)
+			{
+				user_tasks[i].current_state = TASK_READY_STATE;
 			}
 		}
+
 	}
 }
 
