@@ -141,11 +141,11 @@ __attribute__((naked)) void init_schedular_stack(uint32_t sched_top_of_stack){
 
 void init_tasks_stack(void){
 
-	user_tasks[0].current_state = TASK_RUNNING_STATE;
-	user_tasks[1].current_state = TASK_RUNNING_STATE;
-	user_tasks[2].current_state = TASK_RUNNING_STATE;
-	user_tasks[3].current_state = TASK_RUNNING_STATE;
-	user_tasks[4].current_state = TASK_RUNNING_STATE;
+	user_tasks[0].current_state = TASK_READY_STATE;
+	user_tasks[1].current_state = TASK_READY_STATE;
+	user_tasks[2].current_state = TASK_READY_STATE;
+	user_tasks[3].current_state = TASK_READY_STATE;
+	user_tasks[4].current_state = TASK_READY_STATE;
 
 	user_tasks[0].psp_value = IDLE_STACK_START;
 	user_tasks[1].psp_value = T1_STACK_START;
@@ -223,12 +223,21 @@ __attribute__((naked)) void switch_sp_to_psp(void){
 
 }
 
-void task_delay(uint32_t tick_count){
-	user_tasks[current_task].block_count = g_tick_count + tick_count;
-	user_tasks[current_task].current_state = TASK_BLOCKED_STATE;
+void schedule(void){
+	uint32_t *pICSR = (uint32_t*)0xE000ED04; // PendSV
+	*pICSR |= (1 << 28);
 }
 
-__attribute__((naked)) void SysTick_Handler(void){
+void task_delay(uint32_t tick_count){
+	if (current_task) {
+		user_tasks[current_task].block_count = g_tick_count + tick_count;
+		user_tasks[current_task].current_state = TASK_BLOCKED_STATE;
+		schedule();
+	}
+
+}
+
+__attribute__((naked)) PendSV_Handler(void){
 	//Save the context of current task
 	__asm volatile("MRS R0,PSP");
 	__asm volatile("STMDB R0!,{R4-R11}");
@@ -244,7 +253,29 @@ __attribute__((naked)) void SysTick_Handler(void){
 	__asm volatile("POP {LR}");
 
 	__asm volatile("BX LR");
+}
 
+void update_global_tick_count(){
+	g_tick_count++;
+}
+
+void unblock_tasks(){
+	for (int i = 0; i < MAX_TASKS; i++) {
+		if (user_tasks[i].current_state != TASK_READY_STATE) {
+			if (user_tasks[i].block_count == g_tick_count) {
+				user_tasks[i].current_state == TASK_READY_STATE;
+			}
+		}
+	}
+}
+
+void SysTick_Handler(void){
+	uint32_t *pICSR = (uint32_t*)0xE000ED04;
+
+	update_global_tick_count();
+	unblock_tasks();
+
+	*pICSR |= (1 << 28);
 }
 
 //Implement fault handlers
